@@ -6,34 +6,33 @@ VENDOR_ID = 0x0471
 PRODUCT_ID = 0x13aa
 
 # Command to poll the servo adapter
-# This is a 64-byte report, with the first 5 bytes containing the command
-# and the rest padded with zeros.
 poll_command = [0x04, 0x8A, 0x00, 0x00, 0x04] + [0x00] * (64 - 5)
 
-def is_servo_present(report):
+def parse_servo_report(data):
     """
-    Checks if the servo is present based on the received HID report.
-    This function inspects specific bytes in the report to determine
-    if a servo is detected by the adapter.
+    Parse the 64-byte HID report from the servo adapter into meaningful parameters.
+    Assumes `data` is a list or bytes of length 64.
     """
-    return (
-        len(report) >= 6 and
-        report[0] == 0x04 and
-        report[1] == 0x01 and
-        report[2] == 0x00 and
-        report[3] == 0x01 and
-        report[5] == 0x03
-    )
+    #TODO: Write reading from device to get servo data
+    raise NotImplementedError("Parse function not implemented yet.")
+
+def is_servo_present(parsed):
+    """
+    Determine if the servo is plugged in based on parsed data.
+    For example, check if servo angle and PWM power are in valid ranges.
+    """
+    if parsed is None:
+        return False
+    # You can adjust thresholds or add more conditions
+    if 1 <= parsed["servo_angle"] <= 255 and parsed["pwm_power"] > 10:
+        return True
+    return False
 
 def main():
-    """
-    Main function to continuously monitor the servo adapter.
-    It handles initial connection, maintains polling while connected,
-    and gracefully manages disconnections and reconnections.
-    """
     device = None
     adapter_connected = False
     last_servo_status = None
+    last_parsed = None  # Track last parsed message
 
     print("Starting servo adapter monitoring... (Press Ctrl+C to stop)")
 
@@ -48,22 +47,25 @@ def main():
                     adapter_connected = True
                     print("✅ Adapter connected.")
                     last_servo_status = None
+                    last_parsed = None
                 except (IOError, OSError) as e:
                     print(f"Adapter not found or accessible: {e}. Retrying in 2 seconds...")
                     time.sleep(2)
                 except Exception as e:
-                    print(f"An unexpected error occurred while opening the device: {e}. Retrying in 2 seconds...")
+                    print(f"Unexpected error opening device: {e}. Retrying in 2 seconds...")
                     time.sleep(2)
 
         if adapter_connected:
             try:
                 device.write(poll_command)
-                time.sleep(0.05) 
+                time.sleep(0.05)
 
                 report = device.read(64)
 
                 if report:
-                    if is_servo_present(report):
+                    parsed = parse_servo_report(report)
+
+                    if is_servo_present(parsed):
                         if last_servo_status != "plugged":
                             print("✅ Servo is PLUGGED in")
                             last_servo_status = "plugged"
@@ -72,23 +74,29 @@ def main():
                             print("❌ Servo is NOT plugged in")
                             last_servo_status = "not_plugged"
 
+                    if parsed and parsed != last_parsed:
+                        print("--- Servo Status ---")
+                        last_parsed = parsed
+
                 time.sleep(0.4)
 
             except (IOError, OSError) as e:
                 print(f"❌ Adapter disconnected: {e}")
                 if device:
                     device.close()
-                adapter_connected = False 
+                adapter_connected = False
                 device = None
                 last_servo_status = None
+                last_parsed = None
                 time.sleep(1)
             except Exception as e:
-                print(f"An unexpected error occurred during polling: {e}")
+                print(f"Unexpected error during polling: {e}")
                 if device:
                     device.close()
                 adapter_connected = False
                 device = None
                 last_servo_status = None
+                last_parsed = None
                 time.sleep(1)
 
 if __name__ == "__main__":
