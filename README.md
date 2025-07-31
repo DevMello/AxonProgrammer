@@ -1,12 +1,9 @@
 
 # AXON Servo Cross-Platform Programmer
 
-The Axon servo is an amazing servo used by many FTC teams. One of the downsides of the servo is that to program it, you need a Windows laptop. For those who do not have access to one or prefer using macOS or Linux, this can be a significant limitation. This project was created to solve that exact problem. By reverse-engineering the communication between the official Windows-based Axon programmer and the USB HID device, we developed a lightweight, cross-platform Python tool. Currently all it can do is poll when the adapter has been connected, and tell whether a servo has been plugged into the adapter or not (basically nothing). 
-
+The Axon servo is an amazing servo used by many FTC teams. One of the downsides of the servo is that to program it, you need a Windows laptop. For those who do not have access to one or prefer using macOS or Linux, this can be a significant limitation. This project was created to solve that exact problem. By reverse-engineering the communication between the official Windows-based Axon programmer and the USB HID device, we developed a lightweight, cross-platform Python tool with a modern GUI.
 This program is in its VERY early stages. If you have experience reverse engineering protocols for USB devices, contributions are welcome!
-
-This project is a Python-based tool that communicates with a custom USB HID servo adapter (based on the SA33/USBBootloader) to detect whether a servo is currently connected to the adapter.
-
+This project is a Python-based tool that communicates with a custom USB HID servo adapter (based on the SA33/USBBootloader) to program and test Axon servos.
 It replicates the behavior of a proprietary `.exe` tool by sending low-level HID reports to the device and interpreting its responses.
 
 ---
@@ -17,9 +14,20 @@ It replicates the behavior of a proprietary `.exe` tool by sending low-level HID
 - 🔄 Continuously polls the adapter for status
 - ⚙️ Uses `hidapi` (via the `hid` Python package)
 - 🖥️ Works on **Windows**, **Linux**, and **macOS**
+- ✨ Modern GUI built with **PyQt6** and **PyQt6-Fluent-Widgets**.
 
 ---
 
+## 🖼️ GUI
+
+A modern GUI has been developed using [PyQt6](https://pypi.org/project/PyQt6/) and [PyQt6-Fluent-Widgets](https://pypi.org/project/PyQt6-Fluent-Widgets/), with features such as:
+
+* Real-time status display (servo connected, current position, etc.)
+* Interactive controls for configuration and testing
+* Visual feedback and logging
+* Cross-platform builds for Windows, macOS, and Linux
+
+---
 
 ## 🚧 Future Plans
 
@@ -35,37 +43,24 @@ Planned features include:
 * 🔍 **Log and decode all USB traffic** for debugging and advanced development
 
 To support these features, we will continue reverse-engineering the USB HID protocol used by the original Windows `.exe` and documenting the command structure.
-
----
-
-### 🖼️ Planned GUI
-
-A modern GUI is also in development using [PyQt6](https://pypi.org/project/PyQt6/) or [Tkinter](https://docs.python.org/3/library/tkinter.html), with features such as:
-
-* Real-time status display (servo connected, current position, etc.)
-* Interactive controls for configuration and testing
-* Visual feedback and logging
-* Cross-platform builds for Windows, macOS, and Linux
-
----
-
 This tool is being built **by FTC teams, for FTC teams**, with the goal of making Axon servo configuration accessible to everyone, not just those with Windows laptops.
-
 If you'd like to contribute to the protocol decoding, GUI development, or feature implementation, feel free to open an issue or pull request.
 
 ---
 
-
 ## 📦 Requirements
 
 - Python 3.6+
-- `hidapi` Python bindings
+- `hidapi`
+- `ttkthemes`
+- `PyQt6`
+- `PyQt6-Fluent-Widgets`
 
 Install dependencies:
 
 ```bash
-pip install hidapi
-````
+pip install hidapi ttkthemes PyQt6 PyQt6-Fluent-Widgets
+```
 
 On Linux/macOS, you may also need:
 
@@ -97,19 +92,18 @@ sudo udevadm trigger
 
 ## 🚀 Usage
 
+Install the package using pip:
 ```bash
-python servo_monitor.py
+pip install .
 ```
 
-You will see output like:
+Then run the GUI:
 
-```
-Polling servo adapter... (Ctrl+C to stop)
-✅ Servo is PLUGGED in
-❌ Servo is NOT plugged in
+```bash
+axon-programmer
 ```
 
-The program sends a 64-byte HID "poll" command (`04 8A 00 00 04...`) to the adapter every 500 ms and reads its response.
+You will see a GUI window to interact with the servo.
 
 ---
 

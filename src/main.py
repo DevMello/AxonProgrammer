@@ -1,6 +1,8 @@
 import hid
 import time
 
+from gui import main as gui_main
+
 # Vendor ID and Product ID for Axon servo adapter
 VENDOR_ID = 0x0471
 PRODUCT_ID = 0x13aa
@@ -31,74 +33,75 @@ def is_servo_present(report):
     )
 
 def main():
-    device = None
-    adapter_connected = False
-    last_servo_status = None
-    last_parsed = None  # Track last parsed message
+    gui_main()
+    # device = None
+    # adapter_connected = False
+    # last_servo_status = None
+    # last_parsed = None  # Track last parsed message
 
-    print("Starting servo adapter monitoring... (Press Ctrl+C to stop)")
+    # print("Starting servo adapter monitoring... (Press Ctrl+C to stop)")
 
-    while True:
-        if not adapter_connected:
-            print("Searching for servo adapter...")
-            while not adapter_connected:
-                try:
-                    device = hid.device()
-                    device.open(VENDOR_ID, PRODUCT_ID)
-                    device.set_nonblocking(True)
-                    adapter_connected = True
-                    print("✅ Adapter connected.")
-                    last_servo_status = None
-                    last_parsed = None
-                except (IOError, OSError) as e:
-                    print(f"Adapter not found or accessible: {e}. Retrying in 2 seconds...")
-                    time.sleep(2)
-                except Exception as e:
-                    print(f"Unexpected error opening device: {e}. Retrying in 2 seconds...")
-                    time.sleep(2)
+    # while True:
+    #     if not adapter_connected:
+    #         print("Searching for servo adapter...")
+    #         while not adapter_connected:
+    #             try:
+    #                 device = hid.device()
+    #                 device.open(VENDOR_ID, PRODUCT_ID)
+    #                 device.set_nonblocking(True)
+    #                 adapter_connected = True
+    #                 print("✅ Adapter connected.")
+    #                 last_servo_status = None
+    #                 last_parsed = None
+    #             except (IOError, OSError) as e:
+    #                 print(f"Adapter not found or accessible: {e}. Retrying in 2 seconds...")
+    #                 time.sleep(2)
+    #             except Exception as e:
+    #                 print(f"Unexpected error opening device: {e}. Retrying in 2 seconds...")
+    #                 time.sleep(2)
 
-        if adapter_connected:
-            try:
-                device.write(poll_command)
-                time.sleep(0.05)
+    #     if adapter_connected:
+    #         try:
+    #             device.write(poll_command)
+    #             time.sleep(0.05)
 
-                report = device.read(64)
+    #             report = device.read(64)
 
-                if report:
+    #             if report:
 
-                    if is_servo_present(report):
-                        if last_servo_status != "plugged":
-                            print("✅ Servo is PLUGGED in")
-                            last_servo_status = "plugged"
-                    else:
-                        if last_servo_status != "not_plugged":
-                            print("❌ Servo is NOT plugged in")
-                            last_servo_status = "not_plugged"
+    #                 if is_servo_present(report):
+    #                     if last_servo_status != "plugged":
+    #                         print("✅ Servo is PLUGGED in")
+    #                         last_servo_status = "plugged"
+    #                 else:
+    #                     if last_servo_status != "not_plugged":
+    #                         print("❌ Servo is NOT plugged in")
+    #                         last_servo_status = "not_plugged"
 
-                    # if parsed and parsed != last_parsed:
-                    #     print("--- Servo Status ---")
-                    #     last_parsed = parsed
+    #                 # if parsed and parsed != last_parsed:
+    #                 #     print("--- Servo Status ---")
+    #                 #     last_parsed = parsed
 
-                time.sleep(0.4)
+    #             time.sleep(0.4)
 
-            except (IOError, OSError) as e:
-                print(f"❌ Adapter disconnected: {e}")
-                if device:
-                    device.close()
-                adapter_connected = False
-                device = None
-                last_servo_status = None
-                last_parsed = None
-                time.sleep(1)
-            except Exception as e:
-                print(f"Unexpected error during polling: {e}")
-                if device:
-                    device.close()
-                adapter_connected = False
-                device = None
-                last_servo_status = None
-                last_parsed = None
-                time.sleep(1)
+    #         except (IOError, OSError) as e:
+    #             print(f"❌ Adapter disconnected: {e}")
+    #             if device:
+    #                 device.close()
+    #             adapter_connected = False
+    #             device = None
+    #             last_servo_status = None
+    #             last_parsed = None
+    #             time.sleep(1)
+    #         except Exception as e:
+    #             print(f"Unexpected error during polling: {e}")
+    #             if device:
+    #                 device.close()
+    #             adapter_connected = False
+    #             device = None
+    #             last_servo_status = None
+    #             last_parsed = None
+    #             time.sleep(1)
 
 if __name__ == "__main__":
     import sys
