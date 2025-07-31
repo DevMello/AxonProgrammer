@@ -2,7 +2,7 @@ from setuptools import setup, find_packages
 
 setup(
     name="axon-programmer",
-    version="0.0.6",
+    version="0.0.7",
     description="Cross-platform tool for detecting and programming Axon servos",
     long_description = open("README.md", encoding="utf-8").read(),
     long_description_content_type="text/markdown",
@@ -17,7 +17,7 @@ setup(
     ],
     entry_points={
         "console_scripts": [
-            "axon-programmer=src.main:main",
+            "axon-programmer=src.gui:main",
         ],
     },
     classifiers=[

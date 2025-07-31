@@ -17,11 +17,16 @@ class ServoGUI(FluentWindow):
         self.servo = None
         self.device = None
 
-        # Timer for polling servo presence
         from PyQt6.QtCore import QTimer
+        # Timer for polling servo presence
         self.poll_timer = QTimer(self)
         self.poll_timer.setInterval(400)  # ms
         self.poll_timer.timeout.connect(self.poll_servo_presence)
+
+        # Timer for polling adapter connection
+        self.connect_timer = QTimer(self)
+        self.connect_timer.setInterval(2000)  # ms
+        self.connect_timer.timeout.connect(self.try_connect_adapter)
 
         # Hide the navigation panel
         self.navigationInterface.hide()
@@ -33,6 +38,9 @@ class ServoGUI(FluentWindow):
 
         self.stackedWidget.addWidget(self.main_interface)
 
+        # Start auto-connection polling
+        self.connect_timer.start()
+
     def init_ui(self):
         main_layout = QVBoxLayout(self.main_interface)
 
@@ -43,9 +51,7 @@ class ServoGUI(FluentWindow):
         status_layout.addWidget(self.status_label)
         self.servo_status_label = QLabel("Servo Status: Unknown")
         status_layout.addWidget(self.servo_status_label)
-        self.connect_button = PushButton("Connect")
-        self.connect_button.clicked.connect(self.toggle_device_connection)
-        status_layout.addWidget(self.connect_button)
+        # Removed connect button for true auto-connection
 
         # File Operations
         file_group = QGroupBox("File")
@@ -143,33 +149,32 @@ class ServoGUI(FluentWindow):
         self.lose_ppm_combo.addItems([p.value for p in LosePPMProtection])
         params_layout.addWidget(self.lose_ppm_combo, 6, 1, 1, 2)
 
-    def toggle_device_connection(self):
+    def try_connect_adapter(self):
         if self.device:
-            self.poll_timer.stop()
-            self.device.close()
+            return  # Already connected
+        try:
+            self.device = hid.device()
+            self.device.open(VENDOR_ID, PRODUCT_ID)
+            self.device.set_nonblocking(True)
+            self.connect_timer.stop()
+            self.poll_timer.start()
+            self.update_device_status()
+        except (IOError, OSError) as e:
             self.device = None
-            self.servo = None
-        else:
-            try:
-                self.device = hid.device()
-                self.device.open(VENDOR_ID, PRODUCT_ID)
-                self.device.set_nonblocking(True)
-                self.poll_timer.start()
-            except (IOError, OSError) as e:
-                self.device = None
-                InfoBar.error(
-                    title='Error',
-                    content=f"Failed to connect to device: {e}",
-                    orient=Qt.Orientation.Horizontal,
-                    isClosable=True,
-                    position=InfoBarPosition.TOP,
-                    duration=5000,
-                    parent=self
-                )
-        self.update_device_status()
+            # Keep trying
+        except Exception as e:
+            self.device = None
+            # Keep trying
     def poll_servo_presence(self):
         if not self.device:
             self.servo_status_label.setText("Servo Status: Unknown")
+            self.poll_timer.stop()
+            self.device = None
+            self.servo = None
+            self.update_device_status()
+            # Start trying to reconnect
+            if not self.connect_timer.isActive():
+                self.connect_timer.start()
             return
         try:
             poll_command = [0x04, 0x8A, 0x00, 0x00, 0x04] + [0x00] * (64 - 5)
@@ -191,20 +196,31 @@ class ServoGUI(FluentWindow):
                     self.servo_status_label.setText("Servo Status: Disconnected")
             else:
                 self.servo_status_label.setText("Servo Status: Disconnected")
+        except (IOError, OSError):
+            # Device was disconnected
+            self.poll_timer.stop()
+            if self.device:
+                try:
+                    self.device.close()
+                except Exception:
+                    pass
+            self.device = None
+            self.servo = None
+            self.update_device_status()
+            if not self.connect_timer.isActive():
+                self.connect_timer.start()
         except Exception:
             self.servo_status_label.setText("Servo Status: Unknown")
 
     def update_device_status(self):
         if self.device:
             self.status_label.setText("Device Status: Connected")
-            self.connect_button.setText("Disconnect")
             self.read_device_button.setEnabled(True)
             self.write_to_device_button.setEnabled(True)
             self.write_default_button.setEnabled(True)
             # Servo status will be updated by polling
         else:
             self.status_label.setText("Device Status: Disconnected")
-            self.connect_button.setText("Connect")
             self.read_device_button.setEnabled(False)
             self.write_to_device_button.setEnabled(False)
             self.write_default_button.setEnabled(False)

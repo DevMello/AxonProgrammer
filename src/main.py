@@ -104,9 +104,4 @@ def main():
     #             time.sleep(1)
 
 if __name__ == "__main__":
-    import sys
-    if '--gui' in sys.argv:
-        from gui import main as gui_main
-        gui_main()
-    else:
-        main()
+    main()
