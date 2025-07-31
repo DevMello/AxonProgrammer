@@ -1,7 +1,7 @@
 import hid
 import time
 
-from gui import main as gui_main
+from src.gui import main as gui_main
 
 # Vendor ID and Product ID for Axon servo adapter
 VENDOR_ID = 0x0471
