@@ -4,7 +4,7 @@ from PyQt6.QtWidgets import QApplication, QWidget, QVBoxLayout, QHBoxLayout, QLa
 from PyQt6.QtCore import Qt
 from qfluentwidgets import (setTheme, Theme, FluentWindow, PushButton, ComboBox, Slider, CheckBox, InfoBar, InfoBarPosition)
 
-from servo import Servo, Sensitivity, LosePPMProtection
+from src.servo import Servo, Sensitivity, LosePPMProtection
 
 # Vendor ID and Product ID for Axon servo adapter
 VENDOR_ID = 0x0471
