@@ -47,10 +47,14 @@ class Servo:
             self._parse_from_file(file_path)
         elif device:
             self.device = device
+            self.servo_connected = False
             self._from_HID()
             # self.level1 = self._validate_level(level1) # Commented out for now
             # self.level2 = self._validate_level(level2) # Commented out for now
             # self.level3 = self._validate_level(level3) # Commented out for now
+        else:
+            # Initialize with default values if no file or device is provided
+            self._load_from_hex_string(self.DEFAULT_HEX_STRING)
         
 
     @staticmethod
@@ -63,13 +67,26 @@ class Servo:
     #         raise ValueError("Level must be an instance of Level class")
     #     return level
 
+    def _load_from_hex_string(self, hex_string: str):
+        """
+        Load servo configuration from a hex string.
+        """
+        file_data = bytearray(bytes.fromhex(hex_string.replace(" ", "")))
+        if len(file_data) != self.SVO_FILE_LENGTH:
+            raise ValueError(f"SVO file must be exactly {self.SVO_FILE_LENGTH} bytes long, but got {len(file_data)} bytes.")
+        
+        self._parse_from_file(file_data)
+        self.device = None
+
     def _from_HID(self):
-        """
-        Factory method to create a Servo instance from a HID device.
-        This is a placeholder for future implementation.
-        """
-        #TODO: Implement HID support
-        raise NotImplementedError("HID support is not yet implemented. Use file-based instantiation for now.")
+        #TODO: Correct this Poll command based on actual servo protocol
+        poll_command = [0x04, 0x8A, 0x00, 0x00, 0x04] + [0x00] * (64 - 5)
+        self.device.write(poll_command)
+        # Now, read the response
+        report = self.device.read(64)
+        print(f"Raw HID report: {report.hex(' ')}")
+        if report:
+            self._parse_from_data(report)
 
     def write_to_HID(self):
         """
@@ -78,6 +95,63 @@ class Servo:
         """
         #TODO: Implement a write function to write servo data back to the device
         raise NotImplementedError("HID write support is not yet implemented. Use file-based saving for now.")
+
+
+    def to_bytes(self):
+        # Convert the servo's configuration into a byte array for writing
+        file_data = bytearray(bytes.fromhex(self.DEFAULT_HEX_STRING.replace(" ", "")))
+
+        # Overlay the dynamic servo data onto this base
+        file_data[0x04] = self._clamp(self.angle, 1, 255)
+        file_data[0x05] = self._clamp(self.angle, 1, 255) # Mirror angle
+
+        file_data[0x06] = self._clamp(self.neutral + 128, 0, 255) # Encode neutral back to 0-255
+
+        file_data[0x0B] = self._clamp(self.damping_factor, 50, 600)
+
+        pwm_raw_val = int((self.pwm_power / 100.0) * 0xFFFFFF)
+        pwm_raw_val = self._clamp(pwm_raw_val, 0, 0xFFFFFF)
+        file_data[0x10:0x13] = pwm_raw_val.to_bytes(3, 'little')
+
+        file_data[0x0C] = self._encode_sensitivity()
+
+        encoded_byte_25 = self._encode_lose_ppm_protection()
+        encoded_byte_25 = self._set_bit(encoded_byte_25, 1, self.inversion)
+        encoded_byte_25 = self._set_bit(encoded_byte_25, 4, self.soft_start)
+        encoded_byte_25 = self._set_bit(encoded_byte_25, 7, self.overload_protection)
+        file_data[0x25] = encoded_byte_25
+        return file_data
+
+    def _parse_from_data(self, data: bytes):
+        if len(data) < self.SVO_FILE_LENGTH:
+            raise ValueError(f"Data must be at least {self.SVO_FILE_LENGTH} bytes long, but got {len(data)} bytes.")
+
+        angle1 = data[0x04]
+        angle2 = data[0x05]
+        if angle1 != angle2:
+            print(f"Warning: Servo angle bytes differ: 0x04={angle1}, 0x05={angle2}. Using angle from 0x04.")
+        self.angle = self._clamp(angle1, 1, 255)
+
+        raw_neutral = data[0x06]
+        self.neutral = self._clamp(raw_neutral - 128, -127, 127)
+
+        self.damping_factor = self._clamp(data[0x0B], 50, 600)
+
+        pwm_power_bytes = data[0x10:0x13]
+        pwm_raw = int.from_bytes(pwm_power_bytes, 'little')
+        pwm_percent = (pwm_raw / 0xFFFFFF) * 100
+        self.pwm_power = self._clamp(pwm_percent, 39.2, 100.0)
+
+        sensitivity_byte = data[0x0C]
+        self.sensitivity = self._decode_sensitivity(sensitivity_byte)
+
+        byte_25 = data[0x25]
+        self.inversion = self._get_bit(byte_25, 1)
+        self.soft_start = self._get_bit(byte_25, 4)
+        self.overload_protection = self._get_bit(byte_25, 7)
+
+        lose_ppm_byte = data[0x25]
+        self.lose_ppm_protection = self._decode_lose_ppm_protection(lose_ppm_byte)
 
     def _parse_from_file(self, file_path: str):
         try:
@@ -147,11 +221,11 @@ class Servo:
         return 0x30 # Default to Medium if somehow not matched
 
     def _decode_lose_ppm_protection(self, byte_value: int) -> LosePPMProtection:
-        if byte_value == 0xE1:
+        if byte_value == 0x73 or byte_value == 0xE1:
             return LosePPMProtection.GO_NEUTRAL_POSITION
-        elif byte_value == 0xC1:
+        elif byte_value == 0x53 or byte_value == 0xC1:
             return LosePPMProtection.KEEP_POSITION
-        elif byte_value == 0x81:
+        elif byte_value == 0x13 or byte_value == 0x81:
             return LosePPMProtection.RELEASE
         else:
             print(f"Warning: Unknown Lose PPM Protection byte value 0x{byte_value:02X}. Defaulting to RELEASE.")

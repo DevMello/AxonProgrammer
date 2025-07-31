@@ -16,17 +16,19 @@ def parse_servo_report(data):
     #TODO: Write reading from device to get servo data
     raise NotImplementedError("Parse function not implemented yet.")
 
-def is_servo_present(parsed):
+def is_servo_present(report):
     """
     Determine if the servo is plugged in based on parsed data.
     For example, check if servo angle and PWM power are in valid ranges.
     """
-    if parsed is None:
-        return False
-    # You can adjust thresholds or add more conditions
-    if 1 <= parsed["servo_angle"] <= 255 and parsed["pwm_power"] > 10:
-        return True
-    return False
+    return (
+        len(report) >= 6 and
+        report[0] == 0x04 and
+        report[1] == 0x01 and
+        report[2] == 0x00 and
+        report[3] == 0x01 and
+        report[5] == 0x03
+    )
 
 def main():
     device = None
@@ -63,9 +65,8 @@ def main():
                 report = device.read(64)
 
                 if report:
-                    parsed = parse_servo_report(report)
 
-                    if is_servo_present(parsed):
+                    if is_servo_present(report):
                         if last_servo_status != "plugged":
                             print("✅ Servo is PLUGGED in")
                             last_servo_status = "plugged"
@@ -74,9 +75,9 @@ def main():
                             print("❌ Servo is NOT plugged in")
                             last_servo_status = "not_plugged"
 
-                    if parsed and parsed != last_parsed:
-                        print("--- Servo Status ---")
-                        last_parsed = parsed
+                    # if parsed and parsed != last_parsed:
+                    #     print("--- Servo Status ---")
+                    #     last_parsed = parsed
 
                 time.sleep(0.4)
 
@@ -100,4 +101,9 @@ def main():
                 time.sleep(1)
 
 if __name__ == "__main__":
-    main()
+    import sys
+    if '--gui' in sys.argv:
+        from gui import main as gui_main
+        gui_main()
+    else:
+        main()
