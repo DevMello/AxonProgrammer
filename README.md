@@ -94,7 +94,7 @@ sudo udevadm trigger
 
 Install the package using pip:
 ```bash
-pip install .
+pip install axon-programmer
 ```
 
 Then run the GUI:
