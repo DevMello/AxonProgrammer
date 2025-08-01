@@ -76,12 +76,17 @@ brew install hidapi                 # macOS
 To avoid running as root, add a udev rule:
 
 1. Create file `/etc/udev/rules.d/99-servo.rules`:
+  
+```bash
+sudo nano /etc/udev/rules.d/99-servo.rules
+```
 
+2. Copy paste this in to the file:
 ```text
 SUBSYSTEM=="usb", ATTRS{idVendor}=="0471", ATTRS{idProduct}=="13aa", MODE="0666"
 ```
 
-2. Reload rules:
+3. Reload rules:
 
 ```bash
 sudo udevadm control --reload
