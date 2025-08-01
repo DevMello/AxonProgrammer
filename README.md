@@ -52,14 +52,13 @@ If you'd like to contribute to the protocol decoding, GUI development, or featur
 
 - Python 3.6+
 - `hidapi`
-- `ttkthemes`
 - `PyQt6`
 - `PyQt6-Fluent-Widgets`
 
 Install dependencies:
 
 ```bash
-pip install hidapi ttkthemes PyQt6 PyQt6-Fluent-Widgets
+pip install hidapi PyQt6 PyQt6-Fluent-Widgets
 ```
 
 On Linux/macOS, you may also need:
@@ -76,7 +75,7 @@ brew install hidapi                 # macOS
 To avoid running as root, add a udev rule:
 
 1. Create file `/etc/udev/rules.d/99-servo.rules`:
-  
+
 ```bash
 sudo nano /etc/udev/rules.d/99-servo.rules
 ```

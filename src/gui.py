@@ -3,8 +3,10 @@ import hid
 from PyQt6.QtWidgets import QApplication, QWidget, QVBoxLayout, QHBoxLayout, QLabel, QFileDialog, QGroupBox, QGridLayout
 from PyQt6.QtCore import Qt
 from qfluentwidgets import (setTheme, Theme, FluentWindow, PushButton, ComboBox, Slider, CheckBox, InfoBar, InfoBarPosition)
-
+import time as _time
+from PyQt6.QtWidgets import QLineEdit
 from src.servo import Servo, Sensitivity, LosePPMProtection
+from PyQt6.QtCore import QTimer
 
 # Vendor ID and Product ID for Axon servo adapter
 VENDOR_ID = 0x0471
@@ -13,11 +15,11 @@ PRODUCT_ID = 0x13aa
 class ServoGUI(FluentWindow):
     def __init__(self):
         super().__init__()
+        self.resize(550, 700)
         self.setWindowTitle("Axon Servo Programmer")
         self.servo = None
         self.device = None
 
-        from PyQt6.QtCore import QTimer
         # Timer for polling servo presence
         self.poll_timer = QTimer(self)
         self.poll_timer.setInterval(400)  # ms
@@ -41,7 +43,24 @@ class ServoGUI(FluentWindow):
         # Start auto-connection polling
         self.connect_timer.start()
 
+    def clamp_and_set(self, slider, edit, min_val, max_val, is_float=False):
+        text = edit.text()
+        try:
+            val = float(text) if is_float else int(text)
+        except ValueError:
+            val = slider.value()
+        if is_float:
+            val = max(min_val, min(max_val, val))
+            slider.setValue(int(val * 10))
+            edit.setText(f"{val:.1f}")
+        else:
+            val = max(min_val, min(max_val, int(val)))
+            slider.setValue(val)
+            edit.setText(str(val))
+        edit.clearFocus()
+
     def init_ui(self):
+
         main_layout = QVBoxLayout(self.main_interface)
 
         # Device Status
@@ -51,7 +70,6 @@ class ServoGUI(FluentWindow):
         status_layout.addWidget(self.status_label)
         self.servo_status_label = QLabel("Servo Status: Unknown")
         status_layout.addWidget(self.servo_status_label)
-        # Removed connect button for true auto-connection
 
         # File Operations
         file_group = QGroupBox("File")
@@ -85,6 +103,20 @@ class ServoGUI(FluentWindow):
         self.write_default_button.clicked.connect(self.write_default_settings)
         device_layout.addWidget(self.write_default_button)
 
+        # Firmware Operations
+        firmware_group = QGroupBox("Firmware")
+        firmware_layout = QHBoxLayout()
+        firmware_group.setLayout(firmware_layout)
+        main_layout.addWidget(firmware_group)
+
+        self.select_firmware_button = PushButton("Select Firmware")
+        self.select_firmware_button.clicked.connect(self.select_firmware)
+        firmware_layout.addWidget(self.select_firmware_button)
+
+        self.upload_firmware_button = PushButton("Upload Firmware")
+        self.upload_firmware_button.clicked.connect(self.upload_firmware)
+        firmware_layout.addWidget(self.upload_firmware_button)
+
         # Servo Parameters
         params_group = QGroupBox("Parameters")
         params_layout = QGridLayout()
@@ -96,36 +128,52 @@ class ServoGUI(FluentWindow):
         self.angle_slider = Slider(Qt.Orientation.Horizontal)
         self.angle_slider.setRange(1, 255)
         params_layout.addWidget(self.angle_slider, 0, 1)
-        self.angle_label = QLabel("1")
-        self.angle_slider.valueChanged.connect(lambda v: self.angle_label.setText(str(v)))
-        params_layout.addWidget(self.angle_label, 0, 2)
+        self.angle_edit = QLineEdit("1")
+        self.angle_edit.setFixedWidth(50)
+        params_layout.addWidget(self.angle_edit, 0, 2)
+        self.angle_slider.valueChanged.connect(lambda v: self.angle_edit.setText(str(v)))
+        self.angle_edit.editingFinished.connect(
+            lambda: self.clamp_and_set(self.angle_slider, self.angle_edit, 1, 255)
+        )
 
         # Servo Neutral
         params_layout.addWidget(QLabel("Servo Neutral [-127-127]:"), 1, 0)
         self.neutral_slider = Slider(Qt.Orientation.Horizontal)
         self.neutral_slider.setRange(-127, 127)
         params_layout.addWidget(self.neutral_slider, 1, 1)
-        self.neutral_label = QLabel("0")
-        self.neutral_slider.valueChanged.connect(lambda v: self.neutral_label.setText(str(v)))
-        params_layout.addWidget(self.neutral_label, 1, 2)
+        self.neutral_edit = QLineEdit("0")
+        self.neutral_edit.setFixedWidth(50)
+        params_layout.addWidget(self.neutral_edit, 1, 2)
+        self.neutral_slider.valueChanged.connect(lambda v: self.neutral_edit.setText(str(v)))
+        self.neutral_edit.editingFinished.connect(
+            lambda: self.clamp_and_set(self.neutral_slider, self.neutral_edit, -127, 127)
+        )
 
         # Damping Factor
         params_layout.addWidget(QLabel("Damping Factor [50-600]:"), 2, 0)
         self.damping_slider = Slider(Qt.Orientation.Horizontal)
         self.damping_slider.setRange(50, 600)
         params_layout.addWidget(self.damping_slider, 2, 1)
-        self.damping_label = QLabel("50")
-        self.damping_slider.valueChanged.connect(lambda v: self.damping_label.setText(str(v)))
-        params_layout.addWidget(self.damping_label, 2, 2)
+        self.damping_edit = QLineEdit("50")
+        self.damping_edit.setFixedWidth(50)
+        params_layout.addWidget(self.damping_edit, 2, 2)
+        self.damping_slider.valueChanged.connect(lambda v: self.damping_edit.setText(str(v)))
+        self.damping_edit.editingFinished.connect(
+            lambda: self.clamp_and_set(self.damping_slider, self.damping_edit, 50, 600)
+        )
 
         # PWM Power
         params_layout.addWidget(QLabel("PWM Power [39.2-100]%"), 3, 0)
         self.pwm_slider = Slider(Qt.Orientation.Horizontal)
         self.pwm_slider.setRange(392, 1000)
         params_layout.addWidget(self.pwm_slider, 3, 1)
-        self.pwm_label = QLabel("39.2")
-        self.pwm_slider.valueChanged.connect(lambda v: self.pwm_label.setText(f"{v/10.0:.1f}"))
-        params_layout.addWidget(self.pwm_label, 3, 2)
+        self.pwm_edit = QLineEdit("39.2")
+        self.pwm_edit.setFixedWidth(50)
+        params_layout.addWidget(self.pwm_edit, 3, 2)
+        self.pwm_slider.valueChanged.connect(lambda v: self.pwm_edit.setText(f"{v/10.0:.1f}"))
+        self.pwm_edit.editingFinished.connect(
+            lambda: self.clamp_and_set(self.pwm_slider, self.pwm_edit, 39.2, 100.0, is_float=True)
+        )
 
         # Sensitivity
         params_layout.addWidget(QLabel("Sensitivity:"), 4, 0)
@@ -133,21 +181,92 @@ class ServoGUI(FluentWindow):
         self.sensitivity_combo.addItems([s.value for s in Sensitivity])
         params_layout.addWidget(self.sensitivity_combo, 4, 1, 1, 2)
 
-        # Booleans
+        # Booleans (Soft Start, Inversion)
         bool_layout = QHBoxLayout()
         self.soft_start_check = CheckBox("Soft Start")
         self.inversion_check = CheckBox("Inversion")
-        self.overload_protection_check = CheckBox("Overload Protection")
         bool_layout.addWidget(self.soft_start_check)
         bool_layout.addWidget(self.inversion_check)
-        bool_layout.addWidget(self.overload_protection_check)
         params_layout.addLayout(bool_layout, 5, 1, 1, 2)
 
+        # Overload Protection on a new line
+        self.overload_protection_check = CheckBox("Overload Protection")
+        params_layout.addWidget(self.overload_protection_check, 6, 1, 1, 2)
+
         # Lose PPM Protection
-        params_layout.addWidget(QLabel("Lose PPM Protection:"), 6, 0)
+        params_layout.addWidget(QLabel("Lose PPM Protection:"), 7, 0)
         self.lose_ppm_combo = ComboBox()
         self.lose_ppm_combo.addItems([p.value for p in LosePPMProtection])
-        params_layout.addWidget(self.lose_ppm_combo, 6, 1, 1, 2)
+        params_layout.addWidget(self.lose_ppm_combo, 7, 1, 1, 2)
+
+        # Levels (3 levels)
+        self.levels_widget = QWidget()
+        levels_layout = QGridLayout(self.levels_widget)
+        self.level_seconds_sliders = []
+        self.level_percentage_sliders = []
+        self.level_seconds_edits = []
+        self.level_percentage_edits = []
+
+        for i in range(3):
+            # Level time row
+            time_label = QLabel(f"Level {i+1} Time [0-10.5]s:")
+            seconds_slider = Slider(Qt.Orientation.Horizontal)
+            seconds_slider.setRange(0, 105)
+            seconds_edit = QLineEdit("0.0")
+            seconds_edit.setFixedWidth(50)
+            seconds_slider.valueChanged.connect(lambda v, e=seconds_edit: e.setText(f"{v/10.0:.1f}"))
+            seconds_edit.editingFinished.connect(
+                lambda s=seconds_slider, e=seconds_edit: self.clamp_and_set(s, e, 0.0, 10.5, is_float=True)
+            )
+            self.level_seconds_sliders.append(seconds_slider)
+            self.level_seconds_edits.append(seconds_edit)
+            levels_layout.addWidget(time_label, i*2, 0)
+            levels_layout.addWidget(seconds_slider, i*2, 1)
+            levels_layout.addWidget(seconds_edit, i*2, 2)
+
+            # Level power row
+            power_label = QLabel(f"Level {i+1} Power [29-100]%:")
+            percentage_slider = Slider(Qt.Orientation.Horizontal)
+            percentage_slider.setRange(290, 1000)
+            percentage_edit = QLineEdit("29.0")
+            percentage_edit.setFixedWidth(50)
+            percentage_slider.valueChanged.connect(lambda v, e=percentage_edit: e.setText(f"{v/10.0:.1f}"))
+            percentage_edit.editingFinished.connect(
+                lambda s=percentage_slider, e=percentage_edit: self.clamp_and_set(s, e, 29.0, 100.0, is_float=True)
+            )
+            self.level_percentage_sliders.append(percentage_slider)
+            self.level_percentage_edits.append(percentage_edit)
+            levels_layout.addWidget(power_label, i*2+1, 0)
+            levels_layout.addWidget(percentage_slider, i*2+1, 1)
+            levels_layout.addWidget(percentage_edit, i*2+1, 2)
+
+        params_layout.addWidget(self.levels_widget, 8, 0, 6, 3)  # Adjust row/col span as needed
+        self.levels_widget.setVisible(self.overload_protection_check.isChecked())
+        self.overload_protection_check.stateChanged.connect(self.toggle_levels_widget)
+
+    def toggle_levels_widget(self, state):
+        if state == Qt.CheckState.Checked.value: 
+            self.levels_widget.setVisible(True)
+        else:
+            self.levels_widget.setVisible(False)
+
+    def select_firmware(self):
+        file_path, _ = QFileDialog.getOpenFileName(self, "Select Firmware File", "", "Firmware Files (*.bin *.hex)")
+        if file_path:
+            # Here you would handle the firmware selection logic
+            InfoBar.success(
+                title='Success',
+                content=f"Firmware selected: {file_path}",
+                orient=Qt.Orientation.Horizontal,
+                isClosable=True,
+                position=InfoBarPosition.TOP,
+                duration=2000,
+                parent=self
+            )
+            
+    def upload_firmware(self):
+        raise NotImplementedError("Firmware upload functionality is not implemented yet.")
+        
 
     def try_connect_adapter(self):
         if self.device:
@@ -179,7 +298,6 @@ class ServoGUI(FluentWindow):
         try:
             poll_command = [0x04, 0x8A, 0x00, 0x00, 0x04] + [0x00] * (64 - 5)
             self.device.write(poll_command)
-            import time as _time
             _time.sleep(0.05)
             report = self.device.read(64)
             if report:
@@ -218,12 +336,14 @@ class ServoGUI(FluentWindow):
             self.read_device_button.setEnabled(True)
             self.write_to_device_button.setEnabled(True)
             self.write_default_button.setEnabled(True)
+            self.upload_firmware_button.setEnabled(True)  # Enable upload if device is connected
             # Servo status will be updated by polling
         else:
             self.status_label.setText("Device Status: Disconnected")
             self.read_device_button.setEnabled(False)
             self.write_to_device_button.setEnabled(False)
             self.write_default_button.setEnabled(False)
+            self.upload_firmware_button.setEnabled(False)  # Disable upload if device is not connected
             self.servo_status_label.setText("Servo Status: Unknown")
 
 
